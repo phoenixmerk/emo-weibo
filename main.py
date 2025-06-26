@@ -1,4 +1,4 @@
-from weibo_spider import login_weibo, search_weibo_by_user, search_weibo_by_topic, get_comments_for_post
+from weibo_spider import login_weibo, search_weibo_by_user, search_weibo_by_topic, get_comments_for_post, get_uid_by_post_id
 from xslx import save_posts, save_comments
 from keywords import get_keywords
 from analysis import load_data, find_negative_texts, analyze_and_visualize
@@ -16,7 +16,8 @@ def crawl_by_user(driver, username):
     for post in posts:
         time.sleep(random.uniform(2, 5))
         if 'post_id' in post and post['post_id']:
-            comments_for_post = get_comments_for_post(post['post_id'], driver)
+            uid = get_uid_by_post_id(post['post_id'], driver)
+            comments_for_post = get_comments_for_post(post['post_id'], driver, uid)
             all_comments.extend(comments_for_post)  # 直接扩展，因为get_comments_for_post已经处理了结构
         else:
             print(f"警告：跳过没有post_id的帖子: {post}")
@@ -35,7 +36,8 @@ def crawl_by_topic(driver, topic):
     for post in posts:
         time.sleep(random.uniform(2, 5))
         if 'post_id' in post and post['post_id']:
-            comments_for_post = get_comments_for_post(post['post_id'], driver)
+            uid = get_uid_by_post_id(post['post_id'], driver)
+            comments_for_post = get_comments_for_post(post['post_id'], driver, uid)
             all_comments.extend(comments_for_post)  # 直接扩展
         else:
             print(f"警告：跳过没有post_id的帖子: {post}")
@@ -48,7 +50,7 @@ if __name__ == "__main__":
     driver = login_weibo()
 
     print("开始爬取主题微博...")
-    crawl_by_topic(driver, "羽毛球")
+    crawl_by_topic(driver, "河北彩花")
     print("主题微博爬取完成。")
 
     time.sleep(random.uniform(5, 10))

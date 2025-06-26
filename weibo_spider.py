@@ -79,47 +79,81 @@ def search_weibo_by_topic(driver, topic, max_count=10):
             print(f"Extracted post_id: {post_id}")
     return posts
 
-
-def get_comments_for_post(post_id, driver):
+def get_uid_by_post_id(post_id, driver):
     """
-    爬取某条微博的所有评论和回复，并保留回复关系
-    返回结构化数据：[{comment_id, user, content, reply_to, is_reply}]
+    根据 post_id 打开微博详情页，模拟刷新后从URL中提取 uid
     """
-    if not post_id:
-        print("警告：post_id为空，无法获取评论。")
+    detail_url = f"https://weibo.com/detail/{post_id}"
+    driver.get(detail_url)
+    
+    time.sleep(3)  # 等待页面加载
+    
+    # 模拟刷新页面
+    driver.refresh()
+    
+    time.sleep(3)  # 等待刷新后加载
+    
+    current_url = driver.current_url
+    print(f"当前页面URL：{current_url}")
+    
+    # 使用正则从URL中提取 uid
+    import re
+    match = re.search(r'https?://weibo\.com/(\d+)/', current_url)
+    if match:
+        return match.group(1)
+    else:
+        print("警告：无法从刷新后的URL中提取uid")
+        return None
+def get_comments_for_post(post_id, driver, uid):
+    """
+    爬取某条微博的所有评论和回复（通过调用Ajax接口）
+    返回结构化数据：[{user, content}]
+    
+    参数说明：
+    - post_id: 微博帖子ID (字符串)
+    - driver: 已登录的 Selenium WebDriver 实例
+    - uid: 帖子作者的 uid (字符串)
+    """
+    if not post_id or not uid:
+        print("警告：post_id 或 uid 为空，无法获取评论。")
         return []
 
-    # 微博详情页链接（根据实际情况调整）
-    url = f"https://weibo.com/detail/{post_id}"
-    driver.get(url)
-    time.sleep(5)  # 等待页面加载
+    # 构造评论请求 URL
+    comment_url = (
+        f"https://weibo.com/ajax/statuses/buildComments?"
+        f"is_reload=1&id={post_id}&is_show_bulletin=2&is_mix=0"
+        f"&count=20&uid={uid}&fetch_level=0&locale=zh-CN"
+    )
 
-    # 自动下拉加载更多评论
-    for _ in range(3):
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(2)
+    headers = {
+        'User-Agent': 'Mozilla/5.0',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Referer': f'https://weibo.com/detail/{post_id}'
+    }
 
-    html = driver.page_source
-    soup = BeautifulSoup(html, "lxml")
+    # 使用 Selenium 获取 Cookie 并注入到 requests 中
+    cookies = {cookie['name']: cookie['value'] for cookie in driver.get_cookies()}
 
-    comments_data = []
-    # 假设评论区每条评论在 <div class="list_con"> 里
-    comment_blocks = soup.find_all("div", class_="list_con")
-    for block in comment_blocks:
+    import requests
+    response = requests.get(comment_url, headers=headers, cookies=cookies)
+
+    if response.status_code == 200:
         try:
-            user_elem = block.find("a", class_="name")
-            content_elem = block.find("span", class_="txt")
-            user = user_elem.text.strip() if user_elem else ""
-            content = content_elem.text.strip() if content_elem else ""
-            if not content:
-                continue
-            comments_data.append({
-                "post_id": post_id,
-                "user": user,
-                "content": content,
-                "reply_to": "",  # 可扩展为回复关系
-                "is_reply": False
-            })
+            data = response.json()
+            comments = []
+            for item in data.get("data", []):
+                if isinstance(item, dict):
+                    user = item.get("user", {}).get("screen_name", "未知用户")
+                    content = item.get("text", "").strip()
+                    if content:
+                        print(f"用户：{user} | 内容：{content}")
+                        comments.append({
+                            "user": user,
+                            "content": content
+                        })
+            return comments
         except Exception as e:
-            continue
-    return comments_data
+            print("解析评论失败:", e)
+    else:
+        print(f"请求评论失败，状态码: {response.status_code}")
+    return []

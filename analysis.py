@@ -13,7 +13,6 @@ def load_data():
         comments = pd.read_excel("weibo_comments.xlsx")
     return posts, comments
 
-
 def find_negative_texts(posts, comments, keywords):
     """
     利用关键词表筛选负面文本
@@ -57,7 +56,9 @@ def analyze_and_visualize(negative_posts, negative_comments):
         comment_counts = df_comments['theme'].value_counts()
     else:
         comment_counts = pd.Series()
-
+    
+    
+    plt.rcParams['font.sans-serif'] = ['SimHei']
     plt.figure(figsize=(10, 5))
     if not post_counts.empty:
         plt.subplot(1, 2, 1)
